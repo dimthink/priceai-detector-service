@@ -11,7 +11,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Veridrop" }]
 readme = "README.md"
 requires-python = ">=3.10"
-urls = { Homepage = "https://veridrop.org", Repository = "https://github.com/canarybyte/veridrop" }
+urls = { Homepage = "https://priceai.cc/api-transit/detector", Repository = "https://github.com/physics-dimension/priceai-detector-service", Upstream = "https://github.com/canarybyte/veridrop" }
 dependencies = [
     "httpx>=0.27",
     "pydantic>=2.6",

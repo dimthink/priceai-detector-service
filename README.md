@@ -5,6 +5,11 @@
 [![Tests](https://github.com/canarybyte/veridrop/actions/workflows/test.yml/badge.svg)](https://github.com/canarybyte/veridrop/actions/workflows/test.yml)
 [![在线服务](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E6%9C%8D%E5%8A%A1-veridrop.org-10b981.svg)](https://veridrop.org)
 
+> PriceAI fork note: this repository is the standalone detector backend used by
+> PriceAI. It is forked from [canarybyte/veridrop](https://github.com/canarybyte/veridrop),
+> keeps the AGPL-3.0-or-later license, and adds PriceAI integration pieces such
+> as CORS, OpenAI Responses routing, and Cloudflare Turnstile validation.
+
 **在线使用(无需克隆代码)**:[veridrop.org](https://veridrop.org) · 协议页直达:[Claude 中转站检测](https://veridrop.org/claude) · [OpenAI 中转站检测](https://veridrop.org/openai) · [Gemini 中转站检测](https://veridrop.org/gemini) · [中转站红黑榜](https://veridrop.org/leaderboard) · [常见问题 FAQ](https://veridrop.org/faq)
 
 > **Veridrop 是开源的 AI API 中转站真伪检测工具。**

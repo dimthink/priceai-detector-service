@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi import Response as FastAPIResponse
 from fastapi.responses import (
@@ -289,6 +290,85 @@ def _client_ip(request: Request) -> str:
 # one cheap upstream call out from this proxy" operations.
 _PROBE_RATE_LIMIT = 15
 _PROBE_RATE_WINDOW_S = 60.0
+_TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+_TRUTHY_ENV = {"1", "true", "yes", "on"}
+
+
+def _turnstile_secret() -> str:
+    return (
+        os.environ.get("PRICEAI_TURNSTILE_SECRET_KEY")
+        or os.environ.get("TURNSTILE_SECRET_KEY")
+        or ""
+    ).strip()
+
+
+def _turnstile_required() -> bool:
+    value = os.environ.get("PRICEAI_TURNSTILE_REQUIRED", "")
+    return value.strip().lower() in _TRUTHY_ENV
+
+
+def _turnstile_remote_ip(request: Request) -> str:
+    cf_ip = request.headers.get("cf-connecting-ip", "").strip()
+    if cf_ip:
+        return cf_ip
+    forwarded_for = request.headers.get("x-forwarded-for", "").strip()
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return _client_ip(request)
+
+
+async def _verify_turnstile(request: Request, token: str) -> None:
+    """Validate Cloudflare Turnstile before accepting expensive jobs.
+
+    Local development stays frictionless by default: if no secret is configured
+    and PRICEAI_TURNSTILE_REQUIRED is not true, submissions are allowed.
+    Production should set PRICEAI_TURNSTILE_SECRET_KEY, which makes validation
+    mandatory even if PRICEAI_TURNSTILE_REQUIRED is omitted.
+    """
+    secret = _turnstile_secret()
+    if not secret and not _turnstile_required():
+        return
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="human verification is not configured",
+        )
+
+    token = token.strip()
+    if not token:
+        raise HTTPException(
+            status_code=400,
+            detail="human verification is required",
+        )
+    if len(token) > 2048:
+        raise HTTPException(
+            status_code=400,
+            detail="human verification token is too long",
+        )
+
+    form_data = {
+        "secret": secret,
+        "response": token,
+        "remoteip": _turnstile_remote_ip(request),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.post(_TURNSTILE_VERIFY_URL, data=form_data)
+            payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("turnstile verification failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="human verification is temporarily unavailable",
+        ) from exc
+
+    if not response.is_success or not payload.get("success"):
+        error_codes = payload.get("error-codes") or []
+        logger.info("turnstile rejected request: %s", ",".join(error_codes))
+        raise HTTPException(
+            status_code=403,
+            detail="human verification failed, please retry",
+        )
 
 
 async def _preflight_or_422(
@@ -399,6 +479,8 @@ async def api_detect_claude(
     mode: str = Form("full"),
     include_long_context: bool = Form(False),
     include_long_context_extreme: bool = Form(False),
+    turnstile_token: str = Form(""),
+    cf_turnstile_response: str = Form("", alias="cf-turnstile-response"),
 ) -> JSONResponse:
     base_url = base_url.strip()
     api_key = api_key.strip()
@@ -418,6 +500,8 @@ async def api_detect_claude(
         raise HTTPException(status_code=400, detail="model must be 1–200 chars")
     if mode not in _VALID_MODES:
         raise HTTPException(status_code=400, detail=f"mode must be one of {_VALID_MODES}")
+
+    await _verify_turnstile(request, turnstile_token or cf_turnstile_response)
 
     if request.url.path == "/api/detect":
         response.headers["Deprecation"] = "true"
@@ -464,6 +548,7 @@ async def _submit_openai_job(
     protocol: str,
     include_long_context: bool = False,
     include_long_context_extreme: bool = False,
+    turnstile_token: str = "",
 ) -> JSONResponse:
     base_url = base_url.strip()
     api_key = api_key.strip()
@@ -479,6 +564,7 @@ async def _submit_openai_job(
     if mode not in _VALID_MODES:
         raise HTTPException(status_code=400, detail=f"mode must be one of {_VALID_MODES}")
 
+    await _verify_turnstile(request, turnstile_token)
     await _preflight_or_422(request, base_url, api_key, model, "openai")
     job_id = await jobs.submit(
         base_url, api_key, model, mode,
@@ -499,6 +585,8 @@ async def api_detect_openai(
     mode: str = Form("standard"),
     include_long_context: bool = Form(False),
     include_long_context_extreme: bool = Form(False),
+    turnstile_token: str = Form(""),
+    cf_turnstile_response: str = Form("", alias="cf-turnstile-response"),
 ) -> JSONResponse:
     return await _submit_openai_job(
         request,
@@ -509,6 +597,7 @@ async def api_detect_openai(
         protocol="openai",
         include_long_context=include_long_context,
         include_long_context_extreme=include_long_context_extreme,
+        turnstile_token=turnstile_token or cf_turnstile_response,
     )
 
 
@@ -519,6 +608,8 @@ async def api_detect_openai_responses(
     api_key: str = Form(...),
     model: str = Form(...),
     mode: str = Form("standard"),
+    turnstile_token: str = Form(""),
+    cf_turnstile_response: str = Form("", alias="cf-turnstile-response"),
 ) -> JSONResponse:
     return await _submit_openai_job(
         request,
@@ -527,6 +618,7 @@ async def api_detect_openai_responses(
         model=model,
         mode=mode,
         protocol="openai_responses",
+        turnstile_token=turnstile_token or cf_turnstile_response,
     )
 
 
@@ -537,6 +629,8 @@ async def api_detect_gemini(
     api_key: str = Form(...),
     model: str = Form(...),
     mode: str = Form("standard"),
+    turnstile_token: str = Form(""),
+    cf_turnstile_response: str = Form("", alias="cf-turnstile-response"),
 ) -> JSONResponse:
     base_url = base_url.strip()
     api_key = api_key.strip()
@@ -552,6 +646,7 @@ async def api_detect_gemini(
     if mode not in _VALID_MODES:
         raise HTTPException(status_code=400, detail=f"mode must be one of {_VALID_MODES}")
 
+    await _verify_turnstile(request, turnstile_token or cf_turnstile_response)
     await _preflight_or_422(request, base_url, api_key, model, "gemini")
     job_id = await jobs.submit(base_url, api_key, model, mode, protocol="gemini")
     return JSONResponse({"job_id": job_id, "status_url": f"/api/status/{job_id}"})
