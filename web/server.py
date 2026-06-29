@@ -15,6 +15,7 @@ from fastapi import Response as FastAPIResponse
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, Response,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -33,6 +34,19 @@ logger = logging.getLogger("veridrop")
 logger.setLevel(logging.INFO)
 
 app = FastAPI(title="Veridrop", docs_url=None, redoc_url=None)
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("PRICEAI_DETECTOR_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 

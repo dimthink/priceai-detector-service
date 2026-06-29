@@ -61,7 +61,9 @@ open "$DETECTOR_URL/r/{job_id}"
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev,web]"
-VERIDROP_JOBS_DIR=.local/jobs .venv/bin/uvicorn web.server:app --host 127.0.0.1 --port 8017
+VERIDROP_JOBS_DIR=.local/jobs \
+PRICEAI_DETECTOR_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000 \
+.venv/bin/uvicorn web.server:app --host 127.0.0.1 --port 8017
 ```
 
 Then set PriceAI:
