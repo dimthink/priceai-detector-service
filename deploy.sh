@@ -19,8 +19,9 @@
 
 set -euo pipefail
 
-REMOTE_HOST="${RELAY_DETECTOR_HOST:-root@156.227.236.49}"
-REMOTE_PATH="${RELAY_DETECTOR_PATH:-/opt/relay-detector}"
+REMOTE_HOST="${RELAY_DETECTOR_HOST:-priceai-us-edge}"
+REMOTE_PATH="${RELAY_DETECTOR_PATH:-/opt/priceai-detector}"
+INSTALL_EXTRAS="${RELAY_DETECTOR_INSTALL_EXTRAS:-web}"
 
 REINSTALL=false
 RUN_TESTS=false
@@ -43,9 +44,10 @@ Options:
   -h, --help       show this help and exit
 
 Environment overrides: RELAY_DETECTOR_HOST, RELAY_DETECTOR_PATH
+Optional: RELAY_DETECTOR_INSTALL_EXTRAS (default: web)
 
 Prerequisite (one-time, on fresh Ubuntu):
-  ssh $REMOTE_HOST 'apt-get update && apt-get install -y python3.10-venv'
+  ssh $REMOTE_HOST 'apt-get update && apt-get install -y python3-venv'
 EOF
 }
 
@@ -65,11 +67,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 EXCLUDES=(
   --exclude='venv/'
+  --exclude='.venv/'
   --exclude='__pycache__/'
   --exclude='*.pyc'
   --exclude='*.pyo'
   --exclude='.git/'
   --exclude='.pytest_cache/'
+  --exclude='.local/'
+  --exclude='.local-data/'
   --exclude='*.egg-info/'
   --exclude='build/'
   --exclude='dist/'
@@ -110,10 +115,10 @@ if [[ "$NEED_VENV" == "yes" ]]; then
   ssh "$REMOTE_HOST" "set -e; cd $REMOTE_PATH && \
     python3 -m venv venv && \
     ./venv/bin/pip install --quiet --upgrade pip && \
-    ./venv/bin/pip install --quiet -e '.[dev]'"
+    ./venv/bin/pip install --quiet -e '.[$INSTALL_EXTRAS]'"
 elif $REINSTALL; then
   echo "→ reinstalling deps on remote"
-  ssh "$REMOTE_HOST" "cd $REMOTE_PATH && ./venv/bin/pip install --quiet -e '.[dev]'"
+  ssh "$REMOTE_HOST" "cd $REMOTE_PATH && ./venv/bin/pip install --quiet -e '.[$INSTALL_EXTRAS]'"
 fi
 
 if $RUN_TESTS; then

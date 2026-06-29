@@ -1,12 +1,13 @@
 [Unit]
-Description=Veridrop — Claude API relay station detector web service
+Description=PriceAI detector service
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/veridrop
+WorkingDirectory=/opt/priceai-detector
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/veridrop/venv/bin/python -m uvicorn web.server:app \
+EnvironmentFile=-/etc/priceai-detector.env
+ExecStart=/opt/priceai-detector/venv/bin/python -m uvicorn web.server:app \
   --host 127.0.0.1 --port 8765 \
   --workers 1 \
   --log-level info \
