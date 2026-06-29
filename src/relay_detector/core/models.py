@@ -18,6 +18,7 @@ class Mode(str, Enum):
 class Protocol(str, Enum):
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    OPENAI_RESPONSES = "openai_responses"
     GEMINI = "gemini"
 
 

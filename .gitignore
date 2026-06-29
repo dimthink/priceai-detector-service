@@ -1,6 +1,7 @@
 venv/
 .venv/
 .local/
+.local-data/
 __pycache__/
 *.pyc
 *.pyo

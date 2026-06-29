@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from relay_detector.core.models import ExecutionConfig
+from relay_detector.core.models import ExecutionConfig, PerformanceMetrics
 from web import jobs
 
 
@@ -29,7 +29,7 @@ class _CapturedOutcome:
 
     def __init__(self):
         self.results = []
-        self.performance = None
+        self.performance = PerformanceMetrics()
 
 
 async def _capture_cfg(cfg_holder: list, *args):
@@ -101,3 +101,38 @@ async def test_long_context_flag_true_propagates(
 
     assert len(captured) == 1
     assert captured[0].include_long_context is True
+
+
+@pytest.mark.asyncio
+async def test_openai_responses_protocol_writes_report_protocol(
+    isolated_jobs_dir: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Responses API is a separate wire protocol, not Chat Completions."""
+    captured: list[ExecutionConfig] = []
+
+    async def fake_openai_responses(*args):
+        return await _capture_cfg(captured, *args)
+
+    monkeypatch.setattr(jobs, "_run_openai_responses", fake_openai_responses)
+
+    job_id = await jobs.submit(
+        "https://relay.example",
+        "sk-test",
+        "gpt-5.3-codex",
+        "standard",
+        protocol="openai_responses",
+    )
+    for _ in range(20):
+        job = await jobs.get(job_id)
+        if job and job.status in ("done", "error"):
+            break
+        await asyncio.sleep(0.05)
+
+    job = await jobs.get(job_id)
+    assert job is not None
+    assert job.status == "done"
+    assert job.protocol == "openai_responses"
+    assert job.report is not None
+    assert job.report["protocol"] == "openai_responses"
+    assert "Responses API" in job.report["tier_message"]
+    assert len(captured) == 1

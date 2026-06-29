@@ -22,9 +22,12 @@ from typing import Any, Literal
 from relay_detector.models import (
     DetectionReport,
     DetectionTier,
+    DetectorResult,
     ExecutionConfig,
     Mode,
+    PerformanceMetrics,
     Protocol,
+    UsageMetrics,
     mask_api_key,
 )
 from relay_detector.scorer import (
@@ -162,6 +165,7 @@ def _report_candidates(job_id: str) -> list[Path]:
         JOBS_DIR / f"{job_id}.json",
         JOBS_DIR / "anthropic" / f"{job_id}.json",
         JOBS_DIR / "openai" / f"{job_id}.json",
+        JOBS_DIR / "openai_responses" / f"{job_id}.json",
         JOBS_DIR / "gemini" / f"{job_id}.json",
     ]
 
@@ -208,6 +212,16 @@ async def _run(
                     "本检测无法可靠区分高配模型真品与低配模型伪装。"
                     "我们检测的是中转站接口是否符合 OpenAI Chat Completions 协议规范、"
                     "能力是否完整、usage 字段是否符合官方响应形状。"
+                )
+            elif protocol == "openai_responses":
+                outcome = await _run_openai_responses(base_url, api_key, model, cfg)
+                report_protocol = Protocol.OPENAI_RESPONSES
+                report_tier = DetectionTier.BEHAVIORAL
+                tier_title = "行为/协议级验证"
+                tier_message = (
+                    "本检测通过 OpenAI Responses API (POST /v1/responses) 探测中转站。"
+                    "它会检查 response 对象形状、output 内容、结构化输出、工具调用和 usage 字段。"
+                    "适合 Codex 等使用 Responses API 的 Agent 工具链,但仍不等同于加密级模型真伪证明。"
                 )
             elif protocol == "gemini":
                 outcome = await _run_gemini(base_url, api_key, model, cfg)
@@ -323,6 +337,99 @@ async def _run_openai(
         return await runner.run(model)
 
 
+async def _run_openai_responses(
+    base_url: str,
+    api_key: str,
+    model: str,
+    cfg: ExecutionConfig,
+):
+    from relay_detector.core.runner import RunOutcome
+    from relay_detector.protocols.openai import make_client
+    from relay_detector.protocols.openai.baseline import build_openai_baseline_probes
+
+    probe_set = "smoke" if cfg.mode == Mode.QUICK else "full"
+    probes = build_openai_baseline_probes(
+        model,
+        wire_api="responses",
+        probe_set=probe_set,
+    )
+    results: list[DetectorResult] = []
+    usage = UsageMetrics()
+    total_latency_ms = 0
+    request_count = 0
+    backoff_events = 0
+
+    async with make_client(base_url, api_key, timeout=cfg.request_timeout_s) as client:
+        for probe in probes:
+            try:
+                request, response, headers, latency_ms = await client.responses_create(
+                    **probe.request
+                )
+                request_count += 1
+                total_latency_ms += latency_ms
+                _absorb_responses_usage(usage, response)
+                validation = _validate_openai_responses_payload(response, model)
+                features = _extract_openai_responses_features(response, headers)
+                score = float(validation.get("score") or 0.0)
+                passed = validation.get("passed") is True
+                issues = validation.get("issues") if isinstance(validation.get("issues"), list) else []
+                results.append(
+                    DetectorResult(
+                        name=_responses_probe_result_name(probe.name),
+                        display_name=_responses_probe_display_name(probe.name),
+                        status="pass" if passed else "fail",
+                        score=max(0.0, min(100.0, score)),
+                        weight=_responses_probe_weight(probe.name),
+                        duration_ms=latency_ms,
+                        details={
+                            "wire_api": "responses",
+                            "request_model": request.get("model"),
+                            "response_model": response.get("model"),
+                            "validation": validation,
+                            "issues": issues[:30],
+                            "features": features,
+                            "response_text": _responses_output_text(response)[:500],
+                            "evaluation_zh": _responses_probe_evaluation(probe.name, passed, issues),
+                        },
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001
+                request_count += 1
+                if exc.__class__.__name__ == "OpenAIAPIError":
+                    status = getattr(exc, "status", "")
+                    body = str(getattr(exc, "body", ""))[:600]
+                    message = f"HTTP {status}: {body}" if status else str(exc)
+                else:
+                    message = str(exc)
+                if not message:
+                    message = type(exc).__name__
+                results.append(
+                    DetectorResult(
+                        name=_responses_probe_result_name(probe.name),
+                        display_name=_responses_probe_display_name(probe.name),
+                        status="error",
+                        score=0.0,
+                        weight=_responses_probe_weight(probe.name),
+                        details={
+                            "wire_api": "responses",
+                            "error": message,
+                            "evaluation_zh": "Responses API 请求失败,该中转站可能未实现 /v1/responses 或模型不支持该协议。",
+                        },
+                        error=message,
+                    )
+                )
+
+    return RunOutcome(
+        results=results,
+        performance=PerformanceMetrics(
+            total_latency_ms=total_latency_ms,
+            usage=usage,
+            request_count=request_count,
+            backoff_events=backoff_events,
+        ),
+    )
+
+
 async def _run_gemini(
     base_url: str,
     api_key: str,
@@ -338,3 +445,99 @@ async def _run_gemini(
     async with make_client(base_url, api_key, timeout=cfg.request_timeout_s) as client:
         runner = build_runner(client, build_detectors(cfg.mode), cfg)
         return await runner.run(model)
+
+
+def _validate_openai_responses_payload(response: dict, model: str) -> dict:
+    from relay_detector.protocols.openai.protocol_templates import validate_responses_api
+
+    return validate_responses_api(response, request_model=model).to_dict()
+
+
+def _extract_openai_responses_features(response: dict, headers) -> dict:
+    from relay_detector.protocols.openai.baseline import (
+        extract_openai_features,
+        sanitize_openai_headers,
+    )
+
+    return extract_openai_features("responses", response, sanitize_openai_headers(headers))
+
+
+def _responses_probe_result_name(probe_name: str) -> str:
+    if probe_name == "responses_text":
+        return "basic_request"
+    if probe_name == "responses_structured_output":
+        return "structured_output"
+    if probe_name == "responses_tool_call":
+        return "function_calling"
+    return probe_name
+
+
+def _responses_probe_display_name(probe_name: str) -> str:
+    if probe_name == "responses_text":
+        return "基础请求"
+    if probe_name == "responses_structured_output":
+        return "结构化输出"
+    if probe_name == "responses_tool_call":
+        return "函数调用"
+    return probe_name
+
+
+def _responses_probe_weight(probe_name: str) -> float:
+    if probe_name == "responses_text":
+        return 30.0
+    if probe_name == "responses_structured_output":
+        return 35.0
+    if probe_name == "responses_tool_call":
+        return 35.0
+    return 10.0
+
+
+def _responses_probe_evaluation(probe_name: str, passed: bool, issues: list) -> str:
+    if passed:
+        if probe_name == "responses_text":
+            return "Responses 基础请求正常: 响应对象、output 文本和 usage 字段符合预期。"
+        if probe_name == "responses_structured_output":
+            return "Responses 结构化输出正常: text.format=json_schema 被透传并返回有效 JSON。"
+        if probe_name == "responses_tool_call":
+            return "Responses 工具调用正常: 返回 function_call 类型 output,工具名和参数形状符合预期。"
+        return "Responses probe 通过。"
+    if issues:
+        return f"Responses 协议形状存在 {len(issues)} 条问题。"
+    return "Responses probe 未通过。"
+
+
+def _responses_output_text(response: dict) -> str:
+    output = response.get("output") if isinstance(response.get("output"), list) else []
+    texts: list[str] = []
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content") or []:
+            if isinstance(content, dict) and isinstance(content.get("text"), str):
+                texts.append(content["text"])
+    return "\n".join(texts)
+
+
+def _absorb_responses_usage(total: UsageMetrics, response: dict) -> None:
+    usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+    delta = UsageMetrics()
+    input_tokens = usage.get("input_tokens")
+    output_tokens = usage.get("output_tokens")
+    if isinstance(input_tokens, int) and not isinstance(input_tokens, bool):
+        delta.input_tokens = input_tokens
+    if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+        delta.output_tokens = output_tokens
+
+    input_details = usage.get("input_tokens_details")
+    if isinstance(input_details, dict):
+        cached = input_details.get("cached_tokens")
+        if isinstance(cached, int) and not isinstance(cached, bool):
+            delta.cache_read_input_tokens = cached
+
+    output_details = usage.get("output_tokens_details")
+    if isinstance(output_details, dict):
+        reasoning = output_details.get("reasoning_tokens")
+        if isinstance(reasoning, int) and not isinstance(reasoning, bool):
+            delta.server_tool_use = {"reasoning_tokens": reasoning}
+
+    total.add(delta)

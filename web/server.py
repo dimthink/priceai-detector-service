@@ -454,15 +454,16 @@ async def api_detect_claude(
     return JSONResponse({"job_id": job_id, "status_url": f"/api/status/{job_id}"})
 
 
-@app.post("/api/detect/openai")
-async def api_detect_openai(
+async def _submit_openai_job(
     request: Request,
-    base_url: str = Form(...),
-    api_key: str = Form(...),
-    model: str = Form(...),
-    mode: str = Form("standard"),
-    include_long_context: bool = Form(False),
-    include_long_context_extreme: bool = Form(False),
+    *,
+    base_url: str,
+    api_key: str,
+    model: str,
+    mode: str,
+    protocol: str,
+    include_long_context: bool = False,
+    include_long_context_extreme: bool = False,
 ) -> JSONResponse:
     base_url = base_url.strip()
     api_key = api_key.strip()
@@ -481,11 +482,52 @@ async def api_detect_openai(
     await _preflight_or_422(request, base_url, api_key, model, "openai")
     job_id = await jobs.submit(
         base_url, api_key, model, mode,
-        protocol="openai",
+        protocol=protocol,
         include_long_context=include_long_context,
         include_long_context_extreme=include_long_context_extreme,
     )
     return JSONResponse({"job_id": job_id, "status_url": f"/api/status/{job_id}"})
+
+
+@app.post("/api/detect/openai")
+@app.post("/api/detect/openai-chat")
+async def api_detect_openai(
+    request: Request,
+    base_url: str = Form(...),
+    api_key: str = Form(...),
+    model: str = Form(...),
+    mode: str = Form("standard"),
+    include_long_context: bool = Form(False),
+    include_long_context_extreme: bool = Form(False),
+) -> JSONResponse:
+    return await _submit_openai_job(
+        request,
+        base_url=base_url,
+        api_key=api_key,
+        model=model,
+        mode=mode,
+        protocol="openai",
+        include_long_context=include_long_context,
+        include_long_context_extreme=include_long_context_extreme,
+    )
+
+
+@app.post("/api/detect/openai-responses")
+async def api_detect_openai_responses(
+    request: Request,
+    base_url: str = Form(...),
+    api_key: str = Form(...),
+    model: str = Form(...),
+    mode: str = Form("standard"),
+) -> JSONResponse:
+    return await _submit_openai_job(
+        request,
+        base_url=base_url,
+        api_key=api_key,
+        model=model,
+        mode=mode,
+        protocol="openai_responses",
+    )
 
 
 @app.post("/api/detect/gemini")
@@ -573,7 +615,12 @@ async def result_jpg(job_id: str) -> Response:
     )
 
 
-_PROTOCOL_LABELS = {"anthropic": "Claude", "openai": "OpenAI", "gemini": "Gemini"}
+_PROTOCOL_LABELS = {
+    "anthropic": "Claude",
+    "openai": "OpenAI Chat Completions",
+    "openai_responses": "OpenAI Responses",
+    "gemini": "Gemini",
+}
 _VERDICT_LABELS = {"passed": "通过", "marginal": "存在风险", "failed": "未达标"}
 
 
@@ -695,6 +742,7 @@ _STATIC_SITEMAP_URLS = [
 _SITEMAP_REPORT_DIRS = [
     Path("/opt/veridrop/web_data/jobs/anthropic"),
     Path("/opt/veridrop/web_data/jobs/openai"),
+    Path("/opt/veridrop/web_data/jobs/openai_responses"),
     Path("/opt/veridrop/web_data/jobs/gemini"),
     Path("/opt/veridrop/web_data/jobs"),  # legacy top-level
 ]
