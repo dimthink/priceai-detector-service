@@ -3,28 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Veridrop · AI API 中转站检测工具{% endblock %}</title>
-  <meta name="description" content="{% block description %}免费在线检测 AI API 中转站质量。Claude 支持 thinking signature 加密级验证,OpenAI 支持 Chat Completions 行为/协议级检测。{% endblock %}" />
+  <title>{% block title %}PriceAI Model Detector · API 中转模型检测服务{% endblock %}</title>
+  <meta name="description" content="{% block description %}PriceAI 使用的独立 API 中转模型检测服务，基于 Veridrop，负责生成协议、能力、计费和性能证据报告。{% endblock %}" />
   <meta name="keywords" content="AI API 中转站检测, Claude API 中转站, OpenAI 中转站检测, Gemini 中转站检测, API 中转站真伪, Claude thinking signature, API relay verification" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="{% block og_title %}Veridrop · AI API 中转站检测{% endblock %}" />
-  <meta property="og:description" content="{% block og_description %}Claude 加密级验证与 OpenAI Chat Completions 检测已上线。{% endblock %}" />
-  <meta property="og:url" content="{% block og_url %}https://veridrop.org/{% endblock %}" />
+  <meta property="og:title" content="{% block og_title %}PriceAI Model Detector{% endblock %}" />
+  <meta property="og:description" content="{% block og_description %}PriceAI 独立模型检测服务，负责 API 中转接口的证据化检测。{% endblock %}" />
+  <meta property="og:url" content="{% block og_url %}https://detector.priceai.cc/{% endblock %}" />
   <meta property="og:locale" content="zh_CN" />
   <meta name="twitter:card" content="summary_large_image" />
   {% block og_image %}{% endblock %}
-  <link rel="canonical" href="{% block canonical %}https://veridrop.org/{% endblock %}" />
+  <link rel="canonical" href="{% block canonical %}https://detector.priceai.cc/{% endblock %}" />
   <link rel="stylesheet" href="/static/style.css?v=20260505-5" />
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   {% block head_extra %}{% endblock %}
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-LWRPQF2182"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-LWRPQF2182');
-  </script>
 </head>
 <body>
   <header class="site-header">
@@ -34,7 +26,7 @@
           <circle cx="16" cy="16" r="14" stroke="#10b981" stroke-width="3"/>
           <path d="M9 16.5l5 5 9-10" stroke="#10b981" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span>Veridrop</span>
+        <span>PriceAI Detector</span>
       </a>
       <button
         class="nav-toggle"
@@ -51,12 +43,12 @@
         <a href="/claude">Claude</a>
         <a href="/openai">OpenAI</a>
         <a href="/gemini">Gemini</a>
-        <a href="/leaderboard">红黑榜</a>
+        <a href="https://priceai.cc/api-transit/detector" target="_blank" rel="noopener">PriceAI 入口</a>
         <a href="/faq">常见问题</a>
-        <a class="nav-github" href="https://github.com/canarybyte/veridrop"
+        <a class="nav-github" href="https://github.com/physics-dimension/priceai-detector-service"
           target="_blank" rel="noopener noreferrer"
           aria-label="View source on GitHub"
-          title="View source on GitHub · AGPL-3.0 开源">
+          title="View PriceAI detector source on GitHub · AGPL-3.0">
           <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
           </svg>
@@ -71,20 +63,20 @@
     <div class="footer-grid">
       <div class="footer-col footer-col-tagline">
         <p class="footer-tagline">
-          <strong>Veridrop</strong> · AI API 中转站真伪检测工具
+          <strong>PriceAI Model Detector</strong> · API 中转模型检测服务
         </p>
         <p class="footer-desc">
-          协议字段 + 加密签名 + 长上下文 needle-in-haystack 三层验证。
-          代码完全开源,API key 永不落盘。
+          独立执行检测任务，向 PriceAI 主站返回协议、能力、计费和性能证据。
+          基于 Veridrop，保留 AGPL-3.0-or-later 和上游归属。
         </p>
       </div>
       <div class="footer-col">
         <h4>项目</h4>
         <ul>
-          <li><a href="https://github.com/canarybyte/veridrop" target="_blank" rel="noopener">GitHub 源码</a></li>
-          <li><a href="https://github.com/canarybyte/veridrop/blob/main/LICENSE" target="_blank" rel="noopener">License (AGPL-3.0)</a></li>
-          <li><a href="https://github.com/canarybyte/veridrop/blob/main/SECURITY.md" target="_blank" rel="noopener">安全策略</a></li>
-          <li><a href="https://github.com/canarybyte/veridrop/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">贡献指南</a></li>
+          <li><a href="https://github.com/physics-dimension/priceai-detector-service" target="_blank" rel="noopener">GitHub 源码</a></li>
+          <li><a href="https://github.com/physics-dimension/priceai-detector-service/blob/main/LICENSE" target="_blank" rel="noopener">License (AGPL-3.0)</a></li>
+          <li><a href="https://github.com/physics-dimension/priceai-detector-service/blob/main/NOTICE.md" target="_blank" rel="noopener">上游归属</a></li>
+          <li><a href="https://github.com/canarybyte/veridrop" target="_blank" rel="noopener">Veridrop upstream</a></li>
         </ul>
       </div>
       <div class="footer-col">
@@ -93,7 +85,7 @@
           <li><a href="/claude">Claude 检测</a></li>
           <li><a href="/openai">OpenAI 检测</a></li>
           <li><a href="/gemini">Gemini 检测</a></li>
-          <li><a href="/leaderboard">中转站红黑榜</a></li>
+          <li><a href="https://priceai.cc/api-transit/detector" target="_blank" rel="noopener">PriceAI 检测入口</a></li>
         </ul>
       </div>
       <div class="footer-col">
@@ -105,15 +97,15 @@
       </div>
     </div>
     <p class="footer-copyright muted small">
-      © Veridrop · 独立测评 · 字段级穿透 · AGPL-3.0 开源 · 代码可逐行审计
-      <a class="footer-copyright-github" href="https://github.com/canarybyte/veridrop"
+      © PriceAI Model Detector · Based on Veridrop · AGPL-3.0-or-later
+      <a class="footer-copyright-github" href="https://github.com/physics-dimension/priceai-detector-service"
         target="_blank" rel="noopener noreferrer"
         aria-label="View source on GitHub"
-        title="canarybyte/veridrop · AGPL-3.0">
+        title="physics-dimension/priceai-detector-service · AGPL-3.0">
         <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
         </svg>
-        <span>canarybyte/veridrop</span>
+        <span>physics-dimension/priceai-detector-service</span>
       </a>
     </p>
   </footer>

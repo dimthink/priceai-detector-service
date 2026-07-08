@@ -1,26 +1,44 @@
-# PriceAI detector service integration
+# PriceAI Detector Service Integration
 
-This repository is the local PriceAI fork candidate for the API relay detector backend.
+This repository is the standalone PriceAI model detector service. It is kept
+separate from the main PriceAI repository so the AGPL detector runtime, upstream
+Veridrop attribution, sensitive job execution, and future detector experiments
+stay behind a stable HTTP contract.
 
 ## Source
 
+- PriceAI detector repository: https://github.com/physics-dimension/priceai-detector-service
+- PriceAI main repository: https://github.com/physics-dimension/PriceAI
 - Upstream: https://github.com/canarybyte/veridrop
 - License: AGPL-3.0-or-later
 - Runtime: Python 3.10+, FastAPI, `relay-detector`
 
-## Product role
+## Product Role
 
-PriceAI keeps the public frontend and evidence presentation in the main site. This service owns the expensive and sensitive detection work:
+PriceAI keeps the public frontend, station context, and evidence presentation
+in the main site. This service owns the expensive and sensitive detection work:
 
 - receive `base_url`, `api_key`, `model`, `mode`, and protocol;
-- run protocol-specific probes for Claude, OpenAI-compatible, and Gemini-compatible APIs;
+- run protocol-specific probes for Claude, OpenAI-compatible, OpenAI Responses,
+  and Gemini-compatible APIs;
 - persist report JSON and shareable report pages;
-- never persist raw API keys.
-- reject public detection submissions unless Cloudflare Turnstile passes when production verification is configured.
+- never persist raw API keys;
+- reject public detection submissions unless Cloudflare Turnstile passes when
+  production verification is configured.
 
-The PriceAI main site should call this service through `NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL`.
+The PriceAI main site calls this service through:
 
-## HTTP contract used by PriceAI
+```bash
+NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL=https://detector.priceai.cc
+```
+
+The user-facing entry remains:
+
+```text
+https://priceai.cc/api-transit/detector
+```
+
+## HTTP Contract Used By PriceAI
 
 Submit detection:
 
@@ -28,7 +46,7 @@ Submit detection:
 curl -X POST "$DETECTOR_URL/api/detect/claude" \
   -F base_url="https://relay.example.com" \
   -F api_key="$TEMP_RELAY_KEY" \
-  -F model="claude-3-5-sonnet-20241022" \
+  -F model="claude-sonnet-4-6" \
   -F mode="standard" \
   -F include_long_context=false \
   -F turnstile_token="$TURNSTILE_TOKEN"
@@ -46,7 +64,8 @@ Turnstile token field:
 - Preferred: `turnstile_token`
 - Compatible fallback: `cf-turnstile-response`
 
-If `PRICEAI_TURNSTILE_SECRET_KEY` is set, every detection submission requires a valid token. Local development can leave the secret blank.
+If `PRICEAI_TURNSTILE_SECRET_KEY` is set, every detection submission requires a
+valid token. Local development can leave the secret blank.
 
 Poll status:
 
@@ -60,13 +79,50 @@ Fetch report JSON:
 curl "$DETECTOR_URL/api/result/{job_id}.json"
 ```
 
-Open report page:
+Open the service-side report page:
 
 ```bash
 open "$DETECTOR_URL/r/{job_id}"
 ```
 
-## Local run
+PriceAI may also render the JSON under its own report shell:
+
+```text
+https://priceai.cc/api-transit/detector/reports/{job_id}
+```
+
+## Expected Response Shape
+
+Submission success:
+
+```json
+{
+  "job_id": "abc123",
+  "status_url": "/api/status/abc123"
+}
+```
+
+Finished status:
+
+```json
+{
+  "job_id": "abc123",
+  "protocol": "openai_responses",
+  "status": "done",
+  "base_url": "https://relay.example.com",
+  "target_model": "gpt-5.5",
+  "mode": "standard",
+  "result_url": "/r/abc123",
+  "image_url": "/r/abc123.jpg",
+  "json_url": "/api/result/abc123.json"
+}
+```
+
+The report JSON is the detector evidence payload consumed by the PriceAI report
+view. Additive fields are allowed; removing or renaming existing report fields
+requires updating the main site parser first.
+
+## Local Run
 
 ```bash
 python3 -m venv .venv
@@ -84,7 +140,7 @@ NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL=http://127.0.0.1:8017
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 ```
 
-## Production environment
+## Production Environment
 
 Detector service:
 
@@ -102,10 +158,11 @@ NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL=https://detector.priceai.cc
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<Cloudflare Turnstile site key>
 ```
 
-## Fork changes to do next
+## Maintenance Rules
 
-- Point the deployment scripts and systemd unit at the final PriceAI service path and domain.
-- Add a PriceAI-branded lightweight JSON endpoint if we want a smaller report payload than Veridrop's public report JSON.
-- Add request cost warnings and per-IP throttling tuned for PriceAI traffic.
-- Decide whether public reports should stay on the detector domain or be proxied under `priceai.cc/api-transit/detector/report/{id}`.
-- Keep AGPL source disclosure visible if this fork is deployed as a network service.
+- Keep this repository AGPL and public when it backs a public network service.
+- Keep upstream attribution visible in README / NOTICE / package metadata.
+- Keep user API keys out of logs, disk, report JSON, and response payloads.
+- Treat model authenticity reports as evidence, not merchant endorsement.
+- Add new detector families behind protocol-specific modules and tests.
+- Keep the PriceAI main site integration stable through the HTTP contract above.

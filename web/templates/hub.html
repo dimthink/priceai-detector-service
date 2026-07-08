@@ -1,87 +1,37 @@
 {% extends "base.html" %}
 
-{% block title %}AI API 中转站真假检测 - 验证 Claude / GPT / Gemini 是不是真的 | Veridrop{% endblock %}
-{% block description %}Veridrop 是免费的 AI API 中转站检测工具:1 分钟告诉你买的 Claude / GPT / Gemini 是真透传还是被偷换。Claude 用服务端加密签名(中转站无法伪造)做验证,OpenAI / Gemini 测协议合规。无需注册、API key 不留存、代码开源。{% endblock %}
-{% block og_title %}AI API 中转站真假检测 · 1 分钟看穿 Claude / GPT / Gemini 是不是真的{% endblock %}
-{% block og_description %}免费检测中转站是真透传还是偷换便宜模型。Claude 加密签名 + 多协议覆盖 + 报告永久可分享。{% endblock %}
+{% block title %}PriceAI Model Detector · API 中转模型检测服务{% endblock %}
+{% block description %}PriceAI Model Detector 是 PriceAI 使用的独立 API 中转模型检测服务，基于 Veridrop，保留 AGPL-3.0-or-later 协议和上游归属。{% endblock %}
+{% block og_title %}PriceAI Model Detector{% endblock %}
+{% block og_description %}独立的 PriceAI API 中转模型检测后端，负责 Claude、OpenAI、OpenAI Responses 和 Gemini 兼容接口的证据化检测。{% endblock %}
+{% block og_url %}https://detector.priceai.cc/{% endblock %}
+{% block canonical %}https://detector.priceai.cc/{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "Veridrop",
-  "alternateName": ["Veridrop 中转站检测", "AI API 中转站检测工具", "Claude relay verifier"],
+  "name": "PriceAI Model Detector",
   "applicationCategory": "DeveloperApplication",
   "applicationSubCategory": "API Verification Tool",
   "operatingSystem": "Web Browser",
-  "url": "https://veridrop.org/",
-  "browserRequirements": "Requires JavaScript and a modern browser",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD",
-    "availability": "https://schema.org/InStock"
+  "url": "https://detector.priceai.cc/",
+  "isBasedOn": "https://github.com/canarybyte/veridrop",
+  "codeRepository": "https://github.com/physics-dimension/priceai-detector-service",
+  "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+  "creator": {
+    "@type": "Organization",
+    "name": "PriceAI",
+    "url": "https://priceai.cc"
   },
   "featureList": [
-    "Claude thinking signature 加密级真伪验证",
-    "OpenAI Chat Completions 8 项协议检测",
-    "Gemini OpenAI 兼容协议 7 项检测",
-    "三协议自动跳转(选错协议一键切换)",
-    "提交前死模型预探测",
-    "报告永久可分享(HTML + JPG)",
-    "API key 不持久化",
-    "代码完全开源,可自托管"
-  ],
-  "creator": {"@type": "Organization", "name": "Veridrop", "url": "https://veridrop.org"},
-  "description": "Veridrop 通过 Claude thinking signature 等 10 项检测维度,验证 AI API 中转站是否真实透传 Claude 模型,识别用 Kiro / Amazon Q / 其他后端伪装的中转站。同时覆盖 OpenAI / Gemini 协议级检测。"
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": "AI API 中转站是什么?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "中转站(relay,又叫「镜像」「代理」)是第三方搭建的 API 转发服务,把你的请求转给 OpenAI / Anthropic / Google 官方,再把响应原样返回给你。常见出现原因:国内无法直连官方域名、便宜的批发价、统一一个接口调多家模型。"
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "怎么知道我用的是真 Claude / GPT / Gemini 还是假的?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "三个方向:① 协议字段(id 前缀、object、finish_reason 是否符合官方规范);② 能力指纹(Claude 思维签名是否服务端真签名、PDF 是否能识别、function calling 形状);③ 用量字段(usage 里有没有混入异源痕迹)。Veridrop 把这三类合成 7-10 项自动检测,1 分钟出结果。"
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Veridrop 会偷我的 API key 吗?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "不会。API key 只存在 job 内存对象里,job 跑完(成功或失败)立即清空,不写报告 JSON、不写日志、不写磁盘。报告里 key 是脱敏形式(sk-y7xU••••••0h)。代码完全开源可验证,也可以自己 clone 部署。"
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "检测要花钱吗?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Veridrop 自己免费。但检测会发真实 API 请求,产生上游 token 消耗:Haiku 约 $0.012,Sonnet 约 $0.05,Opus 约 $0.20,GPT-4o-mini 约 $0.005。这部分是中转站收的钱,不经 Veridrop。"
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "中转站常见的「作假」手段有哪些?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "5 种常见:① 用 Kiro / Amazon Q / Bedrock 跑 Claude 替身;② 用 Claude 后端跑 GPT 请求;③ 把 GPT-4o 偷换成 GPT-4o-mini 省成本;④ 剥离 thinking、PDF 多模态等高级能力;⑤ 注入额外 system prompt 改写身份回答。Veridrop 对这 5 种都有针对性检测。"
-      }
-    }
+    "Claude / Anthropic Messages API detection",
+    "OpenAI Chat Completions detection",
+    "OpenAI Responses detection",
+    "Gemini OpenAI-compatible detection",
+    "Report JSON for PriceAI frontend integration",
+    "Cloudflare Turnstile validation"
   ]
 }
 </script>
@@ -89,181 +39,71 @@
 
 {% block content %}
 <section class="hub-hero">
-  <h1>AI API 中转站真假检测</h1>
+  <h1>PriceAI Model Detector</h1>
   <p class="answer-capsule">
-    <strong>Veridrop</strong> 是免费的 AI API 中转站检测工具:用 Claude 服务端加密签名(中转站无法伪造)+ 多维行为指纹,
-    <strong>1 分钟</strong>告诉你买的 Claude / GPT / Gemini 是真透传,
-    还是被中转站偷偷换成了别的便宜模型。无需注册、API key 不留存、代码开源。
+    这是 PriceAI 使用的独立 API 中转模型检测服务。用户入口在 PriceAI 主站；
+    本服务负责接收检测任务、运行协议探针、生成报告 JSON 和可分享报告页。
   </p>
   <p class="hub-meta">
-    已检测 <strong>3 个</strong>协议 · <strong>12 项</strong>独立维度 · <strong>30-75 秒</strong>出报告 · 报告 URL 永久可分享
+    基于 Veridrop · AGPL-3.0-or-later · API Key 不落盘 · 证据报告不等于商家背书
   </p>
-</section>
-
-<!-- ============================== Trust Strip ============================== -->
-<section class="trust-strip" aria-label="开源与信任">
-  <div class="trust-strip-head">
-    <h2>🔓 100% 开源 · 评分算法可逐行审计</h2>
-    <p>
-      Veridrop 的本质是「<strong>把 API key 交给我们检测中转站</strong>」 — 这件事的基础是<strong>信任</strong>。
-      所以我们把所有评分逻辑、key 处理代码全部公开,任何人可以审计。这是闭源工具永远做不到的承诺。
-    </p>
-  </div>
-
-  <div class="trust-cards">
-    <article class="trust-card">
-      <div class="trust-icon">📜</div>
-      <h3>评分算法公开</h3>
-      <p>
-        12 项 detector 怎么打分、贝叶斯排名公式、tokenizer 校准 — 全在 GitHub,无黑盒。
-      </p>
-      <a href="https://github.com/canarybyte/veridrop/tree/main/src/relay_detector"
-        target="_blank" rel="noopener" class="trust-link">查看检测器源码 →</a>
-    </article>
-
-    <article class="trust-card">
-      <div class="trust-icon">🔐</div>
-      <h3>API key 不落盘<br><em>可代码证明</em></h3>
-      <p>
-        SECURITY.md 列出每条 key 处理承诺,每条都标了代码位置 — 你可以
-        <code>grep</code> 验证。不是"我们说不偷",是"代码不让偷"。
-      </p>
-      <a href="https://github.com/canarybyte/veridrop/blob/main/SECURITY.md"
-        target="_blank" rel="noopener" class="trust-link">查看安全策略 →</a>
-    </article>
-
-    <article class="trust-card">
-      <div class="trust-icon">⚙️</div>
-      <h3>支持完全自托管</h3>
-      <p>
-        不放心 SaaS?<code>git clone</code> 到自己机器跑,API key 永远不离开你的网络。
-        AGPL-3.0 许可证保证 fork 出去的修改也必须开源。
-      </p>
-      <a href="https://github.com/canarybyte/veridrop#readme"
-        target="_blank" rel="noopener" class="trust-link">自托管指南 →</a>
-    </article>
-  </div>
-
   <div class="trust-cta">
-    <a class="btn btn-github" href="https://github.com/canarybyte/veridrop"
-      target="_blank" rel="noopener">
-      <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-      </svg>
-      <span>在 GitHub 查看源码 · canarybyte/veridrop</span>
+    <a class="btn btn-primary" href="https://priceai.cc/api-transit/detector" target="_blank" rel="noopener">
+      打开 PriceAI 模型检测入口 →
     </a>
-    <span class="trust-license-pill">License · AGPL-3.0</span>
+    <a class="btn btn-ghost" href="https://github.com/physics-dimension/priceai-detector-service" target="_blank" rel="noopener">
+      查看 PriceAI 检测服务源码
+    </a>
   </div>
 </section>
 
 <section class="protocol-grid">
   <article class="protocol-card protocol-card-primary">
     <div class="protocol-top">
-      <span class="protocol-kicker">Claude</span>
-      <span class="tier-badge tier-crypto">加密级验证</span>
+      <span class="protocol-kicker">Service Boundary</span>
+      <span class="tier-badge tier-crypto">独立后端</span>
     </div>
-    <h2>Claude API 中转站检测</h2>
+    <h2>主站负责入口和展示</h2>
     <p>
-      12 项检测,核心是 thinking signature 加密签名 — 这是 Anthropic 服务端真实加密产物
-      (500-2000 字符),中转站理论上无法伪造;Token 用量检查会额外识别 usage 虚报风险。
+      PriceAI 主仓保留 `/api-transit/detector` 的用户界面、站点上下文和报告展示壳。
+      它通过 `NEXT_PUBLIC_TRANSIT_DETECTOR_API_BASE_URL` 调用本服务。
     </p>
-    <a class="btn btn-primary protocol-action" href="/claude">检测 Claude 中转站 →</a>
   </article>
 
   <article class="protocol-card">
     <div class="protocol-top">
-      <span class="protocol-kicker">OpenAI</span>
-      <span class="tier-badge tier-behavioral">行为/协议级</span>
+      <span class="protocol-kicker">Detector Runtime</span>
+      <span class="tier-badge tier-behavioral">执行层</span>
     </div>
-    <h2>OpenAI 中转站检测</h2>
+    <h2>服务负责敏感检测</h2>
     <p>
-      8 项检测覆盖 Chat Completions 协议合规、function calling、structured output、
-      流式一致性。能识别中转站把 GPT 请求偷偷转给 Claude / Gemini 后端的「换芯」行为。
+      本仓库负责 Claude、OpenAI Chat Completions、OpenAI Responses 和 Gemini 兼容接口的真实请求检测、
+      任务状态、报告 JSON、报告图片和 Turnstile 校验。
     </p>
-    <a class="btn btn-ghost protocol-action" href="/openai">检测 OpenAI 中转站 →</a>
   </article>
 
   <article class="protocol-card">
     <div class="protocol-top">
-      <span class="protocol-kicker">Gemini</span>
-      <span class="tier-badge tier-protocol">协议级</span>
+      <span class="protocol-kicker">Attribution</span>
+      <span class="tier-badge tier-protocol">AGPL</span>
     </div>
-    <h2>Gemini 中转站检测</h2>
+    <h2>保留上游归属</h2>
     <p>
-      7 项检测覆盖 Gemini OpenAI 兼容协议、function calling、structured output、流式一致性
-      和 usage 字段。适配 Gemini 3 thinking-by-default 模型的特殊处理。
+      本服务 fork 自 `canarybyte/veridrop`，继续采用 AGPL-3.0-or-later。
+      PriceAI 修改记录和上游归属见仓库里的 README 与 NOTICE。
     </p>
-    <a class="btn btn-ghost protocol-action" href="/gemini">检测 Gemini 中转站 →</a>
   </article>
-</section>
-
-<section class="why-veridrop">
-  <h2>为什么选 Veridrop</h2>
-  <div class="why-grid">
-    <div class="why-item">
-      <div class="why-num">01</div>
-      <h3>加密级真伪验证(独家)</h3>
-      <p>业内只有 Veridrop 利用了 Claude 的 thinking signature — Anthropic 服务端加密签名,长 500-2000 字符,中转站理论上无法伪造。一测就知道是不是真 Claude。</p>
-    </div>
-    <div class="why-item">
-      <div class="why-num">02</div>
-      <h3>三协议一站测,选错自动跳转</h3>
-      <p>Claude / OpenAI / Gemini 都覆盖。你在 Claude 页填了一个 GPT key?Veridrop 一秒识别,一键跳到 OpenAI 页继续 — 不用重新粘贴。</p>
-    </div>
-    <div class="why-item">
-      <div class="why-num">03</div>
-      <h3>提交前 0.5 秒预体检</h3>
-      <p>中转站宣称「支持 50 个模型」但其中一半实际下架?Veridrop 提交前 0.5 秒先帮你试一下,直接告诉你哪些可用 — 免得你白等半分钟拿到全 0 分报告。</p>
-    </div>
-    <div class="why-item">
-      <div class="why-num">04</div>
-      <h3>报告永久可分享(HTML + JPG)</h3>
-      <p>每份检测自动生成 <code>/r/{id}</code> 永久链接和 JPG 卡片,可以直接发微信群、朋友圈、知乎、V2EX。让朋友避坑只需一张图。</p>
-    </div>
-    <div class="why-item">
-      <div class="why-num">05</div>
-      <h3>完全开源 · 不存「偷 key」可能</h3>
-      <p>API key 只在内存里跑完即丢,不写日志、不写磁盘。代码全开源,你可以审计服务端,或者直接 clone 部署到自己机器上 — 比闭源「黑盒检测」工具透明得多。</p>
-    </div>
-    <div class="why-item">
-      <div class="why-num">06</div>
-      <h3>字段级证据 · 看见中转站具体动了哪里</h3>
-      <p>Veridrop 不只给一个「75 分」总分 — 每项扣分都附具体证据:usage 字段缺了哪些键、stream 漏了哪个事件、tool_use ID 是不是规范前缀、签名长度异常多少。一眼看出中转站在哪个环节动了手脚,不是黑盒一个数字。</p>
-    </div>
-  </div>
-</section>
-
-<section class="how-it-works">
-  <h2>怎么用?三步 60 秒</h2>
-  <ol class="how-steps">
-    <li>
-      <span class="how-num">1</span>
-      <div>
-        <h3>填中转站地址 + API key</h3>
-        <p>选要测的协议页(<a href="/claude">Claude</a> / <a href="/openai">OpenAI</a> / <a href="/gemini">Gemini</a>),粘贴 base_url 和 key,模型下拉自动列出该 key 在该中转站可用的模型。</p>
-      </div>
-    </li>
-    <li>
-      <span class="how-num">2</span>
-      <div>
-        <h3>点「开始检测」,等 30-70 秒</h3>
-        <p>Veridrop 并发跑 7-10 项检测,实时显示进度。期间消耗的 token 由你的 key 支付(Haiku 约 $0.012,GPT-4o-mini 约 $0.005)。</p>
-      </div>
-    </li>
-    <li>
-      <span class="how-num">3</span>
-      <div>
-        <h3>看报告,重点看红黄项</h3>
-        <p>总分 ≥85 优秀(绿) / 70-84 通过(浅绿) / 50-69 存在风险(黄) / <50 未达标(红)。Claude 重点看 thinking signature 是否 100 分;OpenAI 看 usage 字段有没有 Claude / Gemini 残留。</p>
-      </div>
-    </li>
-  </ol>
 </section>
 
 <section class="hub-note">
-  <h2>不同协议的 100 分含义不同</h2>
+  <h2>HTTP contract</h2>
   <p>
-    Claude 的 100 分包含<strong>加密级</strong> thinking signature 验证(Anthropic 服务端签名,中转站不可伪造);OpenAI / Gemini 因为没有同等级的服务端签名机制,验证强度只到<strong>行为级 / 协议级</strong>。每份报告页顶部都会明确标注本次检测属于哪一级,避免把协议兼容性误读成加密级真伪证明。完整说明见 <a href="/faq">常见问题</a>。
+    PriceAI 主站使用 <code>POST /api/detect/claude</code>、
+    <code>POST /api/detect/openai-chat</code>、
+    <code>POST /api/detect/openai-responses</code>、
+    <code>POST /api/detect/gemini</code> 提交任务，并通过
+    <code>/api/status/{job_id}</code> 与 <code>/api/result/{job_id}.json</code>
+    读取结果。完整契约见仓库中的 <code>PRICEAI_INTEGRATION.md</code>。
   </p>
 </section>
 {% endblock %}
