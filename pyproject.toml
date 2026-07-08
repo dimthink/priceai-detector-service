@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "relay-detector"
 version = "0.1.0"
-description = "PriceAI Model Detector · standalone AI API relay authenticity service"
+description = "PriceAI Model Detector · 独立 AI API 中转模型检测服务"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
-authors = [{ name = "PriceAI and Veridrop contributors" }]
+authors = [{ name = "PriceAI maintainers" }]
 readme = "README.md"
 requires-python = ">=3.10"
-urls = { Homepage = "https://priceai.cc/api-transit/detector", Repository = "https://github.com/physics-dimension/priceai-detector-service", Upstream = "https://github.com/canarybyte/veridrop" }
+urls = { Homepage = "https://priceai.cc/api-transit/detector", Repository = "https://github.com/dimthink/priceai-detector-service", Upstream = "https://github.com/canarybyte/veridrop" }
 dependencies = [
     "httpx>=0.27",
     "pydantic>=2.6",

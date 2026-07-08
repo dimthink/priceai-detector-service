@@ -1,17 +1,15 @@
 # PriceAI Model Detector
 
-> PriceAI Model Detector is the standalone API relay authenticity service used
-> by PriceAI. It is based on Veridrop, keeps AGPL-3.0-or-later, and exposes a
-> stable HTTP contract for the PriceAI main site.
+> PriceAI Model Detector 是 PriceAI 使用的独立 API 中转模型检测服务。它基于 Veridrop，继续采用 AGPL-3.0-or-later，并通过稳定 HTTP 契约对接 PriceAI 主站。
 
-## Main Entry
+## 主要入口
 
-- PriceAI user entry: https://priceai.cc/api-transit/detector
-- Detector service root: https://detector.priceai.cc/
-- Source code: https://github.com/physics-dimension/priceai-detector-service
-- Upstream: https://github.com/canarybyte/veridrop
+- PriceAI 用户入口：https://priceai.cc/api-transit/detector
+- 检测服务根路径：https://detector.priceai.cc/
+- 源码仓库：https://github.com/dimthink/priceai-detector-service
+- 上游项目：https://github.com/canarybyte/veridrop
 
-## Supported Detection Endpoints
+## 支持的检测接口
 
 - `POST /api/detect/claude`
 - `POST /api/detect/openai-chat`
@@ -20,16 +18,13 @@
 - `GET /api/status/{job_id}`
 - `GET /api/result/{job_id}.json`
 
-## Product Boundary
+## 产品边界
 
-PriceAI main site owns the public comparison experience, station context, and
-report presentation. This service owns the sensitive execution layer: receiving
-temporary relay credentials, running protocol probes, producing report JSON, and
-enforcing Turnstile/rate-limit safeguards.
+PriceAI 主站负责公开入口、站点上下文和报告展示。本服务负责敏感执行层：接收临时中转凭证、运行协议探针、生成报告 JSON，并执行 Turnstile 与限流防护。
 
-## Safety Notes
+## 安全说明
 
-- Raw API keys should not be persisted.
-- Report payloads use masked API keys.
-- Detection reports are evidence artifacts, not merchant endorsements.
-- High-cost probes should stay explicit and opt-in.
+- 不应持久化原始 API Key。
+- 报告 payload 只使用脱敏 API Key。
+- 检测报告是证据材料，不等于商家背书。
+- 高成本检测项应保持显式、可选择。

@@ -1,84 +1,59 @@
 # 安全策略
 
-Veridrop 的产品本质是「用户把 API key 交给我们检测中转站真伪」。
-**所以安全不是我们勾的某个选项,而是产品本身**。
+PriceAI Model Detector 的核心风险很直接：用户会临时提交 API Key，让服务去检测某个中转接口是否可信。因此，安全不是附加项，而是这个仓库必须守住的产品边界。
 
-## 我们怎么处理 API key
+## API Key 处理原则
 
-这是用户最关心的事,代码可逐行验证:
+| 承诺 | 可验证位置 |
+| --- | --- |
+| API Key 只存在于当前检测任务内存中 | `web/jobs.py` |
+| 报告 JSON 不写入原始 API Key | `web/jobs.py` 与 `mask_api_key` |
+| 日志不输出原始 API Key | 搜索日志与异常输出路径 |
+| 默认不依赖数据库存储用户凭证 | 当前报告以脱敏 JSON 为主 |
+| `.env` 与本地数据目录不应入库 | `.gitignore` |
 
-| 我们做了什么 | 你在哪里能验证 |
-|---|---|
-| API key 只活在内存里的 `Job` 对象中,检测完成立即清空 | [`web/jobs.py`](web/jobs.py) 搜 `api_key` |
-| key **永不**写入报告 JSON | [`web/jobs.py:_run`](web/jobs.py) 里只有 `mask_api_key()` 输出落盘 |
-| key **永不**写日志 | grep print/log 语句,不存在带 `api_key` 字段的输出 |
-| key **永不**写数据库 | 我们根本没有数据库 — 只有 JSON 文件,且都已脱敏 |
-| 报告里的 key 显示为脱敏形式 `sk-y7xU••••••0h` | [`mask_api_key`](src/relay_detector/models.py) 函数 |
-| `.env` 文件 gitignored | [`.gitignore`](.gitignore) |
-| 生产部署在自有 VPS,不经任何第三方处理器 | 永不出售、共享、代理 key 给任何上游之外的厂商 |
+如果你不信任托管服务，可以 clone 本仓库自托管运行。公开运行修改版服务时，请遵守 AGPL-3.0-or-later 的源码提供要求。
 
-不放心 SaaS,**clone 到自己机器跑**。这个 repo 的代码就是 veridrop.org 生产
-环境的代码,完全一致。
+## 漏洞报告
 
-## 报告漏洞
+如果你发现以下问题，请不要公开 issue：
 
-如果你发现下面任何一种情况:
+- 能从服务、日志、报告或磁盘中还原用户 API Key；
+- API Key 被发送到用户 `base_url` 之外的目标；
+- Turnstile、限流或任务隔离被绕过；
+- 恶意输入能污染报告、模板或静态资源；
+- 假冒中转接口能稳定绕过关键检测并被标为可信；
+- 其他会影响用户凭证、报告真实性或服务可用性的漏洞。
 
-- 能从运行中的服务里提取 API key 的途径(内存 / 进程 / 日志)
-- 能让 key 写到磁盘的代码路径,即使是临时的
-- 把用户 key 发到非上游目标的代码路径
-- 让假冒中转站被错判为真品的检测旁路
-- 其他安全相关的问题
+优先使用 GitHub 的私下漏洞披露：
 
-**请不要开公开 GitHub issue**。请改用以下方式之一:
+https://github.com/dimthink/priceai-detector-service/security/advisories
 
-- 邮件 / 标记 `[SECURITY]` 但不带敏感细节的 issue,要求私聊渠道;或
-- 用 GitHub 自带的[私下漏洞披露](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
-  功能(repo 主页 Security 标签)
+如果该入口不可用，请先开一个不含敏感细节的 issue，并在标题中标注 `[SECURITY]`，等待维护者切换到私密沟通。
 
-我们目标 **72 小时内回复**。确认有效后:
+## 范围内
 
-- 修复
-- 通知 veridrop.org 在线服务运营
-- 在合理披露窗口(通常 14 天,严重的会更长)后,通过
-  [GitHub Security Advisories](https://github.com/canarybyte/veridrop/security/advisories) 公开
-- 给报告者署名(如希望匿名我们尊重)
+- 本仓库代码、配置、默认部署设置；
+- PriceAI 检测服务的 API Key 处理链路；
+- 报告生成、报告 JSON、报告图片和服务侧报告页；
+- Turnstile 校验、CORS、任务状态接口；
+- 未来新增的管理后台、队列或存储层。
 
-## 范围内(In Scope)
+## 范围外
 
-- 本仓库的代码、配置、默认部署设置
-- veridrop.org 在线服务
-- API key 处理(内存 + 网络 TLS 期望)
-- 任何后续管理后台的 auth / authz
-
-## 范围外(Out of Scope)
-
-- **上游中转站漏洞**:`some-relay.com` 自己有 bug 是它们的责任,Veridrop
-  只负责检测它们
-- **DoS / 限流**:我们就一台 VPS,被 DDoS 是常态运维问题不算漏洞
-- **钓鱼网站**:网上可能有人开 `veridrop.io` / `veridrop.cn` 仿站偷 key,
-  我们知道。**只信 `veridrop.org` 这一个域名**
-- **自托管错配**:你启 verbose 日志 / 暴露 `web_data/` 是你自己的事,不是
-  我们的漏洞
+- 第三方中转站自身漏洞；
+- 用户自托管时主动打开 verbose 日志、公开数据目录或错误配置反向代理；
+- 常规流量攻击或资源耗尽攻击，除非能证明会导致凭证泄露或权限绕过；
+- 仿冒 PriceAI 或仿冒检测服务域名的钓鱼站。
 
 ## 防御深度
 
-我们设计时假定服务器本身可能被打穿,所以:
+设计上应默认服务器、日志和报告都可能被审计，因此：
 
-- key 永远不接触磁盘 — 整盘 dump 也找不到 key
-- 报告写盘前已脱敏 — 不存在"原始未脱敏"的中间形态
-- 代码里没有 verbose 模式会打印 key(故意没有)
+- 原始 API Key 不落盘；
+- 报告写盘前必须脱敏；
+- 异常信息不得包含原始请求密钥；
+- 高成本检测项保持显式可控；
+- 公开报告只作为证据材料，不作为商家背书。
 
-如果你在代码里发现以上任何承诺有反例,**请报告**。
-
-## 漏洞赏金
-
-我们没有付费 bounty 计划。但有:
-
-- 公开 credit
-- commit co-author 署名(如你愿意)
-
-AGPL 意味着 Veridrop 是社区项目,不是 VC 公司,抱歉没现金。
-
-谢谢你读完。Veridrop 只在它真的可信的时候才有价值,而它持续可信的唯一办法
-是有像你这样的人来不断检验它。
+如果你在代码里发现以上承诺有反例，请按安全漏洞处理。

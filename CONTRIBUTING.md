@@ -1,85 +1,75 @@
-# 贡献 Veridrop
+# 贡献 PriceAI Model Detector
 
-感谢考虑参与贡献!Veridrop 是 AGPL-3.0 开源项目 —— 你的修复和新增能帮到
-整个 AI API 中转站生态。
+感谢你愿意参与 PriceAI Model Detector。本仓库是 PriceAI 使用的独立模型检测服务，基于 Veridrop，继续采用 AGPL-3.0-or-later。
 
 ## 快速链接
 
-- **Issue / bug 报告**:[github.com/canarybyte/veridrop/issues](https://github.com/canarybyte/veridrop/issues)
-- **在线服务**:[veridrop.org](https://veridrop.org) — 适合"这家中转站显示 X 但我以为是 Y"这种场景报告(贴 `/r/{job_id}` URL)
-- **设计文档**:[DESIGN.md](DESIGN.md) — 整体架构概览
-- **检测器细节**:[DESIGN.md §3 / §6](DESIGN.md) — 每个 detector 怎么工作
+- PriceAI 检测入口：https://priceai.cc/api-transit/detector
+- 本仓库：https://github.com/dimthink/priceai-detector-service
+- 上游项目：https://github.com/canarybyte/veridrop
+- 架构说明：[DESIGN.md](DESIGN.md)
+- PriceAI 对接契约：[PRICEAI_INTEGRATION.md](PRICEAI_INTEGRATION.md)
 
-## 本地开发环境
+## 本地开发
 
 ```bash
-git clone git@github.com:canarybyte/veridrop.git
-cd veridrop
+git clone git@github.com:dimthink/priceai-detector-service.git
+cd priceai-detector-service
 
-python3 -m venv venv
-./venv/bin/pip install -e ".[dev,web]"
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev,web]"
+.venv/bin/pytest tests/
 
-# 跑测试集(应该 240 个左右,全部 pass)
-./venv/bin/pytest tests/ -v
-
-# 启本地 Web 服务(http://localhost:8000)
-VERIDROP_JOBS_DIR=/tmp/veridrop-dev ./venv/bin/uvicorn web.server:app --reload
+VERIDROP_JOBS_DIR=.local/jobs \
+PRICEAI_DETECTOR_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000 \
+PRICEAI_TURNSTILE_REQUIRED=false \
+.venv/bin/uvicorn web.server:app --reload --host 127.0.0.1 --port 8017
 ```
 
-## 欢迎哪些 PR
+## 欢迎的贡献
 
-| 类型 | 例子 | 备注 |
-|---|---|---|
-| 🐛 **Bug 修复** | 长上下文检测的 false positive、tokenizer 边界、UI 状态错误 | 一定带回归测试 |
-| 🔬 **新检测器** | cache_control 兑现验证、图像输入检测、system_fingerprint 检查 | 看 [DESIGN.md §6.2](DESIGN.md) 的 `ActiveDetector` / `PassiveDetector` 接口 |
-| 🌐 **新协议支持** | Anthropic Bedrock、Vertex AI 原生、Mistral、DeepSeek 等 | 照着 `protocols/anthropic/` 的结构来,目标 ≥80% 测试覆盖 |
-| 📊 **基线数据** | `data/baselines/` 里加新模型的官方真品基线 | 用 `bench.sh` 跑官方 API,只 commit 输出的 JSON |
-| 📖 **文档 / FAQ** | 新问答、翻译、示例 | 中文 + 英文双语都欢迎 |
-| 🎨 **UI / UX** | 移动端排版、可访问性、暗色模式 | 不要引入 JS 框架,保持 vanilla |
+| 类型 | 例子 | 要求 |
+| --- | --- | --- |
+| Bug 修复 | 协议字段误判、报告字段缺失、任务状态错误 | 带回归测试 |
+| 新协议或新检测器 | 新模型家族、Responses 能力补充、模型智商检测原型 | 放在清晰模块边界内 |
+| 安全与隐私 | API Key 脱敏、日志审计、Turnstile 流程 | 不泄露真实用户凭证 |
+| PriceAI 对接 | HTTP 契约、CORS、报告 JSON 兼容 | 先兼容主站再移除旧字段 |
+| 文档 | README、NOTICE、部署说明、检测原理 | 中文优先，命令和字段名保持原样 |
 
 ## 不在范围内的内容
 
-- **反向破解中转站工具**:Veridrop 是用来**验证**中转站真伪,不是帮人绕过
-  限速 / 封号。这类 PR 会被拒绝。
-- **闭源企业扩展**:AGPL-3.0 要求作为服务运行的修改版必须也开源,试图加
-  闭源 hook 的 PR 会被拒。
+- 绕过中转站限流、封禁或鉴权的工具。
+- 持久化、收集、出售用户 API Key 的逻辑。
+- 闭源网络服务扩展。AGPL 要求作为网络服务运行的修改版继续提供对应源码。
+- 把 PriceAI 主站展示逻辑塞进底层协议检测器。
 
 ## 代码风格
 
-- **Python**:PEP 8 但宽松。函数 / 模块注释解释**「为什么」**而非「做什么」
-  — 看现有代码就懂调性,注释经常记录"踩过的坑 / 防御的边界场景"。
-- **测试**:pytest + `pytest-asyncio` 跑 async。外部 API 调用必须 mock,
-  单元测试里**永远**不调真上游。
-- **检测器实现模板**:`protocols/anthropic/detectors/identity.py` 是最小
-  规范实现。`run()` 保持短,辅助函数放下面用 `_underscored_helpers()`。
-- **Commit message**:祈使句(`fix:`、`feat:`、`docs:`、`chore:` 前缀)。
-  中英文都可以。
+- Python 保持现有结构，优先复用 `src/relay_detector/` 里的 protocol 与 core 分层。
+- 外部 API 调用必须在测试里 mock，不在单元测试中调用真实上游。
+- 新检测项应解释证据含义，避免把弱行为信号包装成确定结论。
+- 影响 PriceAI 主站解析的字段变更，必须同步更新 [PRICEAI_INTEGRATION.md](PRICEAI_INTEGRATION.md)。
+- Commit message 使用简短祈使句，可用 `fix:`、`feat:`、`docs:`、`chore:` 前缀。
 
-## PR 流程
+## PR 前检查
 
-1. **重大改动先开 issue 讨论** — 设计有分歧时,issue 阶段聊清楚比 PR 改第三遍快得多
-2. **一个 PR 干一件事**。多件不相关的改动会被请求拆分
-3. **测试本地必须通过**(`./venv/bin/pytest tests/`),CI 会复测
-4. **用户可见的行为改动要更新文档** — README、FAQ 或代码 docstring
+```bash
+.venv/bin/pytest tests/
+git diff --check
+```
 
-## Bug 报告
+如果改动涉及公开页面，建议同时本地启动服务，确认首页、检测提交、报告页和静态资源都能正常访问。
 
-issue 时带上:
+## 上游归属
 
-- **期望行为**:比如「我发了 X 给中转站 Y,期待 `pass`」
-- **实际行为**:比如「拿到 `fail`,summary 写'Z' — 但 Y 是官方 anthropic.com」
-- **`/r/{job_id}` URL**(如果在 veridrop.org 上跑过)
-- **完整 JSON**(如果本地跑过 `detect -o report.json`)
+本仓库保留 Veridrop 的提交历史。GitHub Contributors 会自动显示上游提交作者，这是来源追溯的一部分，不是手动维护的作者名单。
 
-实测数据是修 bug 最快的路径 —— 我们今年发现的真 bug 一半都来自有人跑了
-真实中转站、注意到反常输出。
+通用检测能力如果适合回到上游，优先保持模块边界清晰，方便后续反向贡献。
 
-## 安全
+## 安全问题
 
-如果你发现安全漏洞(比如能让服务记录 key、注入向量等),**请不要开公开
-issue**。详见 [SECURITY.md](SECURITY.md) 的负责披露流程。
+如果你发现 API Key 泄露、报告未脱敏、请求被发送到非用户目标上游、检测结果可被恶意绕过等问题，请不要公开 issue，先走 GitHub Security Advisory 或私下联系维护者。详见 [SECURITY.md](SECURITY.md)。
 
 ## 许可证
 
-提交 PR 即同意你的贡献以 **AGPL-3.0-or-later** 授权(跟项目其他部分一致)。
-我们**不要求 CLA**。
+提交贡献即表示你同意贡献内容以 AGPL-3.0-or-later 授权，与本项目保持一致。
