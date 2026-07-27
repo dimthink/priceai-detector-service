@@ -1,10 +1,10 @@
 """Job queue for HTTP-driven detections.
 
 Wraps the same Runner the CLI uses. Single uvicorn worker, in-process state
-guarded by an asyncio lock. Done jobs are persisted to disk so a server
-restart keeps the shareable result URLs alive. API keys are NEVER persisted —
-the masked form goes to disk; the raw key lives only in the Job until the run
-finishes, then is dropped from memory.
+guarded by an asyncio lock. Job metadata and completed reports are persisted so
+server restarts produce an explicit terminal state instead of losing active
+jobs. API keys are NEVER persisted — the raw key only lives in the task
+coroutine until the run finishes.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -52,6 +53,12 @@ JOBS_DIR.mkdir(parents=True, exist_ok=True)
 # already runs ~13 outbound requests in parallel, so 6 inflight = ~78 sockets.
 _MAX_INFLIGHT = 6
 _SEMA = asyncio.Semaphore(_MAX_INFLIGHT)
+_STATE_DIR_NAME = "_state"
+_DEFAULT_JOB_TIMEOUTS_S = {
+    "quick": 180.0,
+    "standard": 480.0,
+    "full": 720.0,
+}
 
 
 @dataclass
@@ -77,6 +84,103 @@ def _new_job_id() -> str:
     # 8-char URL-safe id; secrets gives ~48 bits of entropy, fine for an
     # unguessable shareable link without auth.
     return secrets.token_urlsafe(6)
+
+
+def state_path(job_id: str) -> Path:
+    return JOBS_DIR / _STATE_DIR_NAME / f"{job_id}.json"
+
+
+def _persist_job(job: Job) -> None:
+    path = state_path(job.id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "id": job.id,
+        "protocol": job.protocol,
+        "status": job.status,
+        "base_url": job.base_url,
+        "target_model": job.target_model,
+        "mode": job.mode,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "error": job.error,
+    }
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+
+
+def _safe_error_message(error: Exception, api_key: str) -> str:
+    message = f"{type(error).__name__}: {error}"
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+    message = re.sub(r"(?i)(bearer\s+)[^\s,;\"']+", r"\1[REDACTED]", message)
+    message = re.sub(r"\b(?:sk|key)-[A-Za-z0-9._-]{8,}\b", "[REDACTED]", message)
+    return message[:500]
+
+
+def _load_persisted_job(path: Path) -> Job | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        status = payload.get("status")
+        if status not in {"queued", "running", "done", "error"}:
+            return None
+        return Job(
+            id=str(payload["id"]),
+            protocol=str(payload.get("protocol") or "anthropic"),
+            status=status,
+            base_url=str(payload.get("base_url") or ""),
+            target_model=str(payload.get("target_model") or ""),
+            mode=str(payload.get("mode") or "full"),
+            created_at=float(payload.get("created_at") or time.time()),
+            started_at=_optional_float(payload.get("started_at")),
+            finished_at=_optional_float(payload.get("finished_at")),
+            error=str(payload["error"]) if payload.get("error") else None,
+        )
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
+        return None
+
+
+def recover_interrupted_jobs() -> int:
+    state_dir = JOBS_DIR / _STATE_DIR_NAME
+    if not state_dir.exists():
+        return 0
+    recovered = 0
+    for path in state_dir.glob("*.json"):
+        job = _load_persisted_job(path)
+        if job is None:
+            continue
+        if job.status in {"queued", "running"}:
+            job.status = "error"
+            job.error = "ServiceRestarted: detection interrupted by service restart"
+            job.finished_at = time.time()
+            _persist_job(job)
+            recovered += 1
+        _JOBS[job.id] = job
+    return recovered
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _job_timeout_seconds(
+    mode: str,
+    include_long_context: bool,
+    include_long_context_extreme: bool,
+) -> float:
+    timeout = _DEFAULT_JOB_TIMEOUTS_S.get(mode, _DEFAULT_JOB_TIMEOUTS_S["full"])
+    if include_long_context_extreme:
+        return max(timeout, 1200.0)
+    if include_long_context:
+        return max(timeout, 600.0)
+    return timeout
+
+
+recover_interrupted_jobs()
 
 
 async def submit(
@@ -109,8 +213,9 @@ async def submit(
     )
     async with _LOCK:
         _JOBS[job_id] = job
+        _persist_job(job)
     asyncio.create_task(
-        _run(
+        _run_with_timeout(
             job_id, base_url, api_key, model, mode, protocol,
             include_long_context, include_long_context_extreme,
         )
@@ -123,7 +228,8 @@ async def get(job_id: str) -> Job | None:
     async with _LOCK:
         j = _JOBS.get(job_id)
     if j is not None:
-        return j
+        if j.status != "done" or j.report is not None:
+            return j
     report = None
     for path in _report_candidates(job_id):
         if not path.exists():
@@ -134,7 +240,12 @@ async def get(job_id: str) -> Job | None:
         except (json.JSONDecodeError, OSError):
             continue
     if report is None:
-        return None
+        persisted = _load_persisted_job(state_path(job_id))
+        if persisted is not None:
+            async with _LOCK:
+                _JOBS[job_id] = persisted
+            return persisted
+        return j
     return Job(
         id=job_id,
         status="done",
@@ -146,6 +257,25 @@ async def get(job_id: str) -> Job | None:
         finished_at=time.time(),
         report=report,
     )
+
+
+async def metrics() -> dict[str, int | float | None]:
+    async with _LOCK:
+        snapshot = list(_JOBS.values())
+    counts = {status: sum(job.status == status for job in snapshot) for status in ("queued", "running", "done", "error")}
+    active = [job for job in snapshot if job.status in {"queued", "running"}]
+    oldest_active_age_s = (
+        max(0.0, time.time() - min(job.created_at for job in active))
+        if active
+        else None
+    )
+    return {
+        **counts,
+        "active": counts["queued"] + counts["running"],
+        "known_jobs": len(snapshot),
+        "max_inflight": _MAX_INFLIGHT,
+        "oldest_active_age_s": oldest_active_age_s,
+    }
 
 
 def report_path(job_id: str, protocol: str) -> Path:
@@ -170,6 +300,45 @@ def _report_candidates(job_id: str) -> list[Path]:
     ]
 
 
+async def _run_with_timeout(
+    job_id: str,
+    base_url: str,
+    api_key: str,
+    model: str,
+    mode: str,
+    protocol: str,
+    include_long_context: bool = False,
+    include_long_context_extreme: bool = False,
+) -> None:
+    timeout_s = _job_timeout_seconds(
+        mode,
+        include_long_context,
+        include_long_context_extreme,
+    )
+    try:
+        await asyncio.wait_for(
+            _run(
+                job_id,
+                base_url,
+                api_key,
+                model,
+                mode,
+                protocol,
+                include_long_context,
+                include_long_context_extreme,
+            ),
+            timeout=timeout_s,
+        )
+    except asyncio.TimeoutError:
+        async with _LOCK:
+            job = _JOBS.get(job_id)
+            if job is not None and job.status in {"queued", "running"}:
+                job.status = "error"
+                job.error = f"TimeoutError: detection exceeded {int(timeout_s)} seconds"
+                job.finished_at = time.time()
+                _persist_job(job)
+
+
 async def _run(
     job_id: str,
     base_url: str,
@@ -187,6 +356,7 @@ async def _run(
                 return
             j.status = "running"
             j.started_at = time.time()
+            _persist_job(j)
 
         try:
             cfg = ExecutionConfig.for_mode(Mode(mode), max_concurrent=3)
@@ -294,13 +464,16 @@ async def _run(
                     _JOBS[job_id].protocol = protocol
                     _JOBS[job_id].report = report_dict
                     _JOBS[job_id].finished_at = time.time()
+                    _JOBS[job_id].error = None
+                    _persist_job(_JOBS[job_id])
 
         except Exception as e:  # noqa: BLE001 — bubble error into job state
             async with _LOCK:
                 if job_id in _JOBS:
                     _JOBS[job_id].status = "error"
-                    _JOBS[job_id].error = f"{type(e).__name__}: {e}"
+                    _JOBS[job_id].error = _safe_error_message(e, api_key)
                     _JOBS[job_id].finished_at = time.time()
+                    _persist_job(_JOBS[job_id])
 
 
 async def _run_anthropic(

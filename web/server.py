@@ -797,7 +797,7 @@ async def result_page(request: Request, job_id: str) -> HTMLResponse:
 
 @app.get("/healthz")
 async def healthz() -> JSONResponse:
-    return JSONResponse({"ok": True, "ts": time.time()})
+    return JSONResponse({"ok": True, "ts": time.time(), "jobs": await jobs.metrics()})
 
 
 # SEO + AI GEO surface — see docs/SEO_AI_GEO_PLAN.md §3.1.A/B/C. These three
